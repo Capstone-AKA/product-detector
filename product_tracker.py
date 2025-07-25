@@ -1,6 +1,7 @@
 import numpy as np
+from http_request import HttpPostClient
 
-def filter_detection(detections, conf_threshold = 0.7, min_area = 19200):
+def filter_detection(detections, conf_threshold = 0.7, area_threshold = 19200):
     filtered = []
  
     for det in detections[0]:
@@ -13,7 +14,7 @@ def filter_detection(detections, conf_threshold = 0.7, min_area = 19200):
         height = y2 - y1
         area = width * height
 
-        if area < min_area:
+        if area < area_threshold:
             continue
 
         filtered.append(det)
@@ -23,8 +24,8 @@ def filter_detection(detections, conf_threshold = 0.7, min_area = 19200):
 def compute_iou(boxA, boxB):
     xA = max(boxA[0], boxB[0])
     yA = max(boxA[1], boxB[1])
-    xB = max(boxA[2], boxB[2])
-    yB = max(boxA[3], boxB[3])
+    xB = min(boxA[2], boxB[2])
+    yB = min(boxA[3], boxB[3])
 
     interArea = max(0, xB - xA) * max(0, yB - yA)
     boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
@@ -33,7 +34,7 @@ def compute_iou(boxA, boxB):
     return iou
 
 class ProductTracker:
-    def __init__(self, labels, iou_threshold=0.7, count_threshold=3):
+    def __init__(self, labels, iou_threshold=0.6, count_threshold=5):
         self.iou_threshold = iou_threshold
         self.count_threshold = count_threshold
         self.trackers = {}
@@ -55,6 +56,7 @@ class ProductTracker:
                     best_iou = iou
                     best_id = tid
 
+            http_request_data = []
             if best_iou > self.iou_threshold:
                 tracker = self.trackers[best_id]
                 tracker['bbox'] = [x1,y1,x2,y2]
@@ -62,7 +64,10 @@ class ProductTracker:
                 new_trackers[best_id] = tracker
                 
                 if tracker['count'] == self.count_threshold:
-                    print(f'{self.labels[int(class_id)]} added to cart.')
+                    product_name = self.labels[int(class_id)]
+                    http_request_data.append(product_name)
+                    print(f'{product_name} added to cart.')
+
             else:
                 new_trackers[self.next_id] = {
                     'bbox': [x1,y1,x2,y2],
