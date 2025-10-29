@@ -1,26 +1,39 @@
 from ultralytics import YOLO
-from dotenv import load_dotenv
+import cv2
 
-import os
+from config_env import PD, HOST_URL, DEBUG
+from product_tracker import ProductTracker
 
-# Load env path.
-load_dotenv()
-pd = os.getenv('PRODUCT_DETECTOR')
-host_url = os.getenv('HOST_URL')
-debug = os.getenv('DEBUG')
+# 1) Load
+model = YOLO(PD)
+pt = ProductTracker()
 
-model = YOLO(pd)
+# 2) Open and set webcam.
+cap = cv2.VideoCapture(0)
 
-results = model.predict(source=0, imgsz=640, device=0, stream=True, vid_stride=2)
+if not cap.isOpened():
+    raise RuntimeError("Source unavailable. Check connection or other index(1, 2, ...).")
 
-# Access to results.
-# for result in results:
-#     xywh = result.boxes.xywh
-#     xywhn = result.boxes.xywhn  # normalized
-#     xyxy = result.boxes.xyxy
-#     xyxyn = result.boxes.xyxyn  # normalized
-#     names = [result.names[cls.item()] for cls in result.boxes.cls.int()]
-#     confs = result.boxes.conf
+try:
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            print("Fail to read frame.")
+            break
 
-#     if(debug):
-#         print(names)
+        # 3) Predict.
+        results = model.predict(
+            source=frame,
+            imgsz=640,
+            conf=0.25,
+            device=0,
+            verbose=false,
+        )
+        
+        # 4) Decide whether add product to cart.
+        add_list = pt.track_product(results)
+        
+except KeyboardInterrupt:
+    pass
+finally:
+    cap.release()
