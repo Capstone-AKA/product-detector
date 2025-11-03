@@ -1,0 +1,9 @@
+# YOLO runs (학습 결과 로그, 이미지 등)
+runs/
+runs/**
+
+*.pt
+*.csv
+*.xml
+*.jpg
+*.yaml
