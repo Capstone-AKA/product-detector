@@ -1,4 +1,5 @@
 import requests
+import json
 
 class HttpPostClient:
     def __init__(self, base_url):
@@ -11,5 +12,5 @@ class HttpPostClient:
             response.raise_for_status()
             return response
         except requests.exceptions.RequestException as e:
-            print("HTTP request failed: " + e)
+            print(f'HTTP request failed: {e}')
             return None
