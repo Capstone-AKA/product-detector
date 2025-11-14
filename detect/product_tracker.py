@@ -3,31 +3,32 @@ from config_env import DEBUG
 from scipy.optimize import linear_sum_assignment  # Hungarian algorithm
 
 class Track:
-    __slots__ = ("name", "location", "count", "update_flag")
+    __slots__ = ("name", "location", "count", "missed")
     
     def __init__(self, name, location):
         # Initialize a new tracking entry
         self.name = name
         self.location = location  # bbox: [x1,y1,x2,y2]
         self.count = 1            # consecutive matched frames
-        self.update_flag = True   # mark as updated in this frame
-
-    def reset_update_flag(self):
-        # Mark as not updated for the current frame
-        self.update_flag = False
+        self.missed = 0           # missed counts in consecutive frames
 
     def update(self, location):
         # Update track with a new detection
         self.location = location
         self.count += 1
-        self.update_flag = True
+        self.missed = 0
+
+    def miss(self):
+        # Count missed
+        self.missed+=1
 
 
 class ProductTracker:
-    def __init__(self, iou_threshold=0.6, count_threshold=5, min_area_norm=0.4):
+    def __init__(self, iou_threshold=0.6, count_threshold=5, miss_threshold=3, min_area_norm=0.4):
         # Threshold settings
         self.iou_threshold = float(iou_threshold)
         self.count_threshold = int(count_threshold)
+        self.miss_threshold = int(miss_threshold)
         self.min_area_norm = float(min_area_norm)
 
         # List of Track objects
@@ -87,29 +88,38 @@ class ProductTracker:
 
         denom = areaT + areaP - interArea + 1e-6
         return interArea / denom  # IoU matrix (T,P)
+    
+    def _log(self, add_list):
+        if DEBUG and self.track_list:
+            log_tl = "Track["
+            for track in self.track_list:
+                log_tl += f"{track.name}({track.count},{track.missed}), "
+            print(log_tl+"]")
+
+        log_al = "Added["
+        if DEBUG and add_list:
+            for add in add_list:
+                log_al += f"{add}, "
+            print(log_al+"]")
 
     def track_product(self, detections):
         """
-        Perform global track–detection assignment using Hungarian algorithm.
+        Perform global track-detection assignment using Hungarian algorithm.
         Returns: list of product names that reached count_threshold.
         """
 
         add_list = []
-        log_al=''
 
         # 1. Filter detections
         products = self._filter_detection(detections)
 
-        # If no detections: clear all tracks
+        # If no detections
         if not products:
-            self.track_list = []
-            if DEBUG:
-                print("no detections, clear track_list")
+            for track in self.track_list:
+                track.miss()
+            self.track_list = [t for t in self.track_list if t.missed <= self.miss_threshold]
+            self._log(add_list)
             return add_list
-
-        # 2. Mark all tracks as not updated for this frame
-        for track in self.track_list:
-            track.reset_update_flag()
 
         T = len(self.track_list)
         P = len(products)
@@ -119,11 +129,12 @@ class ProductTracker:
             for prd in products:
                 xyxy = np.array(prd['xyxy'], dtype=np.float32)
                 self.track_list.append(Track(prd['name'], xyxy))
+            self._log(add_list)
             return add_list
 
         # 3. Build IoU matrix
         track_boxes = np.array([t.location for t in self.track_list], dtype=np.float32)
-        prod_boxes  = np.array([p['xyxy'] for p in products],      dtype=np.float32)
+        prod_boxes  = np.array([p['xyxy'] for p in products], dtype=np.float32)
 
         iou_matrix = self._compute_iou_matrix(track_boxes, prod_boxes)
 
@@ -149,24 +160,23 @@ class ProductTracker:
 
             if track.count == self.count_threshold:
                 add_list.append(track.name)
-                if DEBUG:
-                    log_al = f"{track.name} added to cart."
 
-        # 6. Unmatched detections -> new tracks
+        # 6. Unmatched tracks -> missed track
+        for t_idx, track in enumerate(self.track_list):
+            if t_idx in matched_tracks:
+                continue
+            track.miss()
+
+        # 7. Unmatched detections -> new tracks
         for p_idx, prd in enumerate(products):
             if p_idx in matched_products:
                 continue
             xyxy = prod_boxes[p_idx]
             self.track_list.append(Track(prd['name'], xyxy))
 
-        # 7. Remove tracks that were not updated in this frame
-        self.track_list = [t for t in self.track_list if t.update_flag]
+        # 8. Remove tracks that were missed for a while
+        self.track_list = [t for t in self.track_list if t.missed <= self.miss_threshold]
 
-        if DEBUG and len(self.track_list) > 0:
-            log_tl = 'tracker list: '
-            for track in self.track_list:
-                log_tl += f"{track.name}({track.count}), "
-            print(log_tl)
-            print(log_al)
+        self._log(add_list)
         
         return add_list
