@@ -16,6 +16,9 @@ cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     raise RuntimeError("Source unavailable. Check connection or other index(1, 2, ...).")
 
+if DEBUG:
+    print('System started...')
+
 try:
     while True:
         ok, frame = cap.read()
@@ -29,6 +32,7 @@ try:
             imgsz=640,
             conf=0.25,
             device=0,
+            vid_stride=3,
             verbose=False,
         )
         
