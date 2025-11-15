@@ -24,7 +24,7 @@ class Track:
 
 
 class ProductTracker:
-    def __init__(self, iou_threshold=0.6, count_threshold=5, miss_threshold=3, min_area_norm=0.4):
+    def __init__(self, iou_threshold=0.6, count_threshold=4, miss_threshold=2, min_area_norm=0.4):
         # Threshold settings
         self.iou_threshold = float(iou_threshold)
         self.count_threshold = int(count_threshold)
@@ -49,16 +49,20 @@ class ProductTracker:
             return filtered
 
         # Convert model tensors to numpy arrays
-        xywhn = det.boxes.xywhn.cpu().numpy()  # normalized (cx,cy,w,h)
         xyxy  = det.boxes.xyxy.cpu().numpy()   # pixel coordinates
         names = [det.names[int(cls.item())] for cls in det.boxes.cls.int()]
+        H, W = det.orig_shape
 
         # Filter by area
-        for (cx, cy, w, h), (x1, y1, x2, y2), name in zip(xywhn, xyxy, names):
-            area_norm = float(w) * float(h)
+        for (x1, y1, x2, y2), name in zip(xyxy, names):
+            x1, y1, x2, y2 = map(float, [x1, y1, x2, y2])
+            wn = max(0.0, x2 - x1) / W
+            hn = max(0.0, y2 - y1) / H
+
+            area_norm = wn * hn
             if area_norm >= self.min_area_norm:
                 filtered.append({
-                    'xyxy': [float(x1), float(y1), float(x2), float(y2)],
+                    'xyxy': [x1, y1, x2, y2],
                     'name': name
                 })
         return filtered
@@ -95,6 +99,8 @@ class ProductTracker:
             for track in self.track_list:
                 log_tl += f"{track.name}({track.count},{track.missed}), "
             print(log_tl+"]")
+        else:
+            print("no detection, clear track list")
 
         log_al = "Added["
         if DEBUG and add_list:
@@ -113,16 +119,16 @@ class ProductTracker:
         # 1. Filter detections
         products = self._filter_detection(detections)
 
-        # If no detections
-        if not products:
+        T = len(self.track_list)
+        P = len(products)
+        
+        # Case: no detections
+        if P == 0:
             for track in self.track_list:
                 track.miss()
             self.track_list = [t for t in self.track_list if t.missed <= self.miss_threshold]
             self._log(add_list)
             return add_list
-
-        T = len(self.track_list)
-        P = len(products)
 
         # Case: no existing tracks -> create new ones for all detections
         if T == 0:
