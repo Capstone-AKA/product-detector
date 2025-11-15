@@ -51,20 +51,28 @@ class ProductTracker:
         # Convert model tensors to numpy arrays
         xyxy  = det.boxes.xyxy.cpu().numpy()   # pixel coordinates
         names = [det.names[int(cls.item())] for cls in det.boxes.cls.int()]
+
         H, W = det.orig_shape
+        x1 = xyxy[:, 0]
+        y1 = xyxy[:, 1]
+        x2 = xyxy[:, 2]
+        y2 = xyxy[:, 3]
+
+        wn = max(0.0, x2 - x1) / W
+        hn = max(0.0, y2 - y1) / H
+        area_norm = wn * hn
+
+        mask = area_norm >= self.min_area_norm
 
         # Filter by area
-        for (x1, y1, x2, y2), name in zip(xyxy, names):
-            x1, y1, x2, y2 = map(float, [x1, y1, x2, y2])
-            wn = max(0.0, x2 - x1) / W
-            hn = max(0.0, y2 - y1) / H
+        for (bx, name, ok) in zip(xyxy, name, mask): 
+            if not ok:
+                continue
 
-            area_norm = wn * hn
-            if area_norm >= self.min_area_norm:
-                filtered.append({
-                    'xyxy': [x1, y1, x2, y2],
-                    'name': name
-                })
+            filtered.append({
+                'xyxy': [x1, y1, x2, y2],
+                'name': name
+            })
         return filtered
 
     def _compute_iou_matrix(self, track_boxes, prod_boxes):
