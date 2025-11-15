@@ -58,19 +58,19 @@ class ProductTracker:
         x2 = xyxy[:, 2]
         y2 = xyxy[:, 3]
 
-        wn = max(0.0, x2 - x1) / W
-        hn = max(0.0, y2 - y1) / H
+        wn = (x2 - x1) / W
+        hn = (y2 - y1) / H
         area_norm = wn * hn
 
         mask = area_norm >= self.min_area_norm
 
         # Filter by area
-        for (bx, name, ok) in zip(xyxy, name, mask): 
+        for (bx, name, ok) in zip(xyxy, names, mask):
             if not ok:
                 continue
 
             filtered.append({
-                'xyxy': [x1, y1, x2, y2],
+                'xyxy': bx[:4],
                 'name': name
             })
         return filtered
@@ -102,7 +102,10 @@ class ProductTracker:
         return interArea / denom  # IoU matrix (T,P)
     
     def _log(self, add_list):
-        if DEBUG and self.track_list:
+        if not DEBUG:
+            return
+
+        if self.track_list:
             log_tl = "Track["
             for track in self.track_list:
                 log_tl += f"{track.name}({track.count},{track.missed}), "
@@ -111,7 +114,7 @@ class ProductTracker:
             print("no detection, clear track list")
 
         log_al = "Added["
-        if DEBUG and add_list:
+        if add_list:
             for add in add_list:
                 log_al += f"{add}, "
             print(log_al+"]")
