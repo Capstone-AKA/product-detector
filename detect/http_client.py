@@ -14,3 +14,6 @@ class HttpPostClient:
         except requests.exceptions.RequestException as e:
             print(f'HTTP request failed: {e}')
             return None
+
+def t_post_json(hpc, data, endpoint):
+    hpc.post_json(data, endpoint)

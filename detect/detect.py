@@ -1,10 +1,11 @@
 from ultralytics import YOLO
 import cv2
+import threading
 import time
 
 from config_env import PD, CART_ID, HOST_URL, ADD_ENDPOINT, DEBUG, TIME_STAMP
 from product_tracker import ProductTracker
-from http_client import HttpPostClient
+from http_client import HttpPostClient, t_post_json
 
 # 1) Load
 model = YOLO(PD)
@@ -34,7 +35,6 @@ try:
             imgsz=640,
             conf=0.25,
             device=0,
-            vid_stride=1,
             verbose=False,
         )
         t2 = time.time()
@@ -49,11 +49,13 @@ try:
                 'cart_number': CART_ID,
                 'product_list': add_list
             }
-            hpc.post_json(data, ADD_ENDPOINT)
+            http_t = threading.Thread(target=t_post_json, args=(hpc, data, ADD_ENDPOINT))
+            http_t.start()
+            # post_json(data, ADD_ENDPOINT)
         t4 = time.time()
 
         if TIME_STAMP:
-            print(f"tot={t4-t1:.4f}s | infer={t2-t1:.4f}s | track={t3-t2:.4f}s | http={t4-t3:.4f}s")
+            print(f"Timestamp[infer={t2-t1:.4f}s | track={t3-t2:.4f}s | http={t4-t3:.4f}s | total={t4-t1:.4f}s]")
         
 except KeyboardInterrupt:
     pass
