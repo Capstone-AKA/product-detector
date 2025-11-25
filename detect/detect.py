@@ -3,23 +3,24 @@ import cv2
 import threading
 import time
 
-from config_env import PD, CART_ID, HOST_URL, ADD_ENDPOINT, DEBUG, TIME_STAMP
+from config_env import PD, CART_ID, HOST_URL, ADD_ENDPOINT, DEBUG, TIME_STAMP, CAM_WIDTH, CAM_HEIGHT
 from product_tracker import ProductTracker
 from http_client import HttpPostClient, t_post_json
 
 # 1) Load
 model = YOLO(PD)
-pt = ProductTracker()
+pt = ProductTracker(iou_threshold=0.6, count_threshold=3, miss_threshold=2, min_area_norm=0.3)
 hpc = HttpPostClient(HOST_URL)
 
 # 2) Open and set webcam.
 cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAM_WIDTH)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAM_HEIGHT)
 
 if not cap.isOpened():
     raise RuntimeError("Source unavailable. Check connection or other index(1, 2, ...).")
 
-if DEBUG:
-    print('System started...')
+print('System started...')
 
 try:
     while True:
@@ -51,7 +52,7 @@ try:
             }
             http_t = threading.Thread(target=t_post_json, args=(hpc, data, ADD_ENDPOINT))
             http_t.start()
-            # post_json(data, ADD_ENDPOINT)
+            # hpc.post_json(data, ADD_ENDPOINT)
         t4 = time.time()
 
         if TIME_STAMP:
