@@ -12,8 +12,9 @@ class Track:
         self.count = 1            # consecutive matched frames
         self.missed = 0           # missed counts in consecutive frames
 
-    def update(self, location):
+    def update(self, name, location):
         # Update track with a new detection
+        self.name = name
         self.location = location
         self.count += 1
         self.missed = 0
@@ -171,7 +172,7 @@ class ProductTracker:
             track = self.track_list[t_idx]
             xyxy = prod_boxes[p_idx]
 
-            track.update(xyxy)
+            track.update(track.name, xyxy)
             matched_tracks.add(t_idx)
             matched_products.add(p_idx)
 
